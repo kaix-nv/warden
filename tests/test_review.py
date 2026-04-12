@@ -53,3 +53,38 @@ def test_review_returns_agent_output(mock_runner, warden_dir):
     mock_runner.run.return_value = "Found 1 issue: off-by-one in loop"
     result = agent.review("abc123", "diff", ["file.py"])
     assert "off-by-one" in result
+
+
+def test_review_pr_includes_pr_number(mock_runner, warden_dir):
+    agent = ReviewAgent(mock_runner, warden_dir)
+    mock_runner.run.return_value = "PR looks good."
+    agent.review_pr(1234)
+    prompt = mock_runner.run.call_args[0][0]
+    assert "1234" in prompt
+    assert "gh pr view" in prompt or "gh pr diff" in prompt
+
+
+def test_review_pr_includes_understanding_context(mock_runner, warden_dir):
+    agent = ReviewAgent(mock_runner, warden_dir)
+    mock_runner.run.return_value = "PR looks good."
+    agent.review_pr(42)
+    prompt = mock_runner.run.call_args[0][0]
+    assert "async for all I/O" in prompt
+    assert "Result types" in prompt
+
+
+def test_review_pr_asks_to_reference_decisions(mock_runner, warden_dir):
+    agent = ReviewAgent(mock_runner, warden_dir)
+    mock_runner.run.return_value = "PR looks good."
+    agent.review_pr(42)
+    prompt = mock_runner.run.call_args[0][0]
+    assert "design decision" in prompt.lower() or "design coherence" in prompt.lower()
+    assert "correctness" in prompt.lower()
+    assert "consistency" in prompt.lower() or "consistent" in prompt.lower()
+
+
+def test_review_pr_returns_agent_output(mock_runner, warden_dir):
+    agent = ReviewAgent(mock_runner, warden_dir)
+    mock_runner.run.return_value = "This PR contradicts decision #3 about config format."
+    result = agent.review_pr(99)
+    assert "contradicts" in result

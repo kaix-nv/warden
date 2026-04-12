@@ -45,6 +45,14 @@ def ask(question: str = typer.Argument(..., help="Question about the codebase"))
 
 
 @app.command()
+def review_pr(pr_number: int = typer.Argument(..., help="PR number to review")):
+    """Review a PR using accumulated codebase understanding."""
+    orchestrator = _get_orchestrator()
+    result = orchestrator.review_pr(pr_number)
+    typer.echo(result)
+
+
+@app.command()
 def status():
     """Show Warden status."""
     orchestrator = _get_orchestrator()

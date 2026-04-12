@@ -46,6 +46,14 @@ def test_status_command(mock_orchestrator):
     assert result.exit_code == 0
     assert "42" in result.stdout
 
+def test_review_pr_command(mock_orchestrator):
+    mock_orchestrator.review_pr.return_value = "PR looks good. Aligns with design decision #3."
+    result = runner.invoke(app, ["review-pr", "1234"])
+    assert result.exit_code == 0
+    mock_orchestrator.review_pr.assert_called_once_with(1234)
+    assert "design decision" in result.stdout.lower()
+
+
 def test_config_command():
     result = runner.invoke(app, ["config"])
     assert result.exit_code == 0

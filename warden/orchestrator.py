@@ -62,6 +62,10 @@ class Orchestrator:
         for commit in reversed(commits):
             self._analyze_commit(commit["hash"])
 
+    def review_pr(self, pr_number: int) -> str:
+        """Review a PR using accumulated understanding."""
+        return self.review_agent.review_pr(pr_number)
+
     def ask(self, question: str) -> str:
         return self.ask_agent.ask(question)
 
