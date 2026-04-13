@@ -1,5 +1,5 @@
 from pathlib import Path
-from warden.agents.context import load_understanding
+from warden.agents.context import load_relevant_understanding, load_understanding
 from warden.agents.runner import AgentRunner
 
 
@@ -8,8 +8,13 @@ class ReviewAgent:
         self.runner = runner
         self.understanding_dir = warden_dir / "understanding"
 
-    def review(self, commit_hash: str, diff: str, changed_files: list[str], branch_prefix: str = "warden/", impact_summary: str = "") -> str:
-        understanding = load_understanding(self.understanding_dir)
+    def review(self, commit_hash: str, diff: str, changed_files: list[str],
+               branch_prefix: str = "warden/", impact_summary: str = "",
+               graph_keywords: list[str] | None = None) -> str:
+        if graph_keywords:
+            understanding = load_relevant_understanding(self.understanding_dir, graph_keywords)
+        else:
+            understanding = load_understanding(self.understanding_dir)
         prompt = (
             "You are reviewing a code change as a senior engineer who deeply "
             "understands this codebase's history, design decisions, and patterns.\n\n"
@@ -36,8 +41,12 @@ class ReviewAgent:
         )
         return self.runner.run(prompt)
 
-    def review_pr(self, pr_number: int, impact_summary: str = "") -> str:
-        understanding = load_understanding(self.understanding_dir)
+    def review_pr(self, pr_number: int, impact_summary: str = "",
+                  graph_keywords: list[str] | None = None) -> str:
+        if graph_keywords:
+            understanding = load_relevant_understanding(self.understanding_dir, graph_keywords)
+        else:
+            understanding = load_understanding(self.understanding_dir)
 
         prompt = (
             "You are reviewing a pull request as a senior engineer who deeply "

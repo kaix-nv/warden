@@ -253,6 +253,42 @@ class GraphManager:
                         queue.append(child.id)
             return descendants
 
+    def get_related_keywords(self, file_paths: list[str]) -> list[str]:
+        """Get keywords (names, qualified names) for nodes related to these files."""
+        keywords = set()
+        for fp in file_paths:
+            if not fp.endswith(".py"):
+                continue
+            # Add the file path and module name as keywords
+            keywords.add(fp)
+            with Session(self.engine) as session:
+                file_nodes = session.query(GraphNode).filter(
+                    GraphNode.file_path == fp
+                ).all()
+                for n in file_nodes:
+                    keywords.add(n.name)
+                    keywords.add(n.qualified_name)
+
+            # Add dependents and dependencies
+            for node_dict in self.get_dependents(fp) + self.get_dependencies(fp):
+                keywords.add(node_dict["name"])
+                keywords.add(node_dict["qualified_name"])
+
+            # Add inheritance chains for classes in this file
+            with Session(self.engine) as session:
+                classes = session.query(GraphNode).filter(
+                    GraphNode.file_path == fp,
+                    GraphNode.type == "class",
+                ).all()
+                for cls in classes:
+                    for a in self.get_ancestors(cls.qualified_name):
+                        keywords.add(a["name"])
+                    for d in self.get_descendants(cls.qualified_name):
+                        keywords.add(d["name"])
+
+        # Filter out very short/generic keywords that would match too broadly
+        return [k for k in keywords if len(k) > 2]
+
     def get_impact_summary(self, file_paths: list[str]) -> str:
         """Produce a text summary of what's affected by changes to these files."""
         lines = ["## Dependency Impact\n"]

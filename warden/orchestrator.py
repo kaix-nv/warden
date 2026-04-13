@@ -68,10 +68,11 @@ class Orchestrator:
             self._analyze_commit(commit["hash"])
 
     def review_pr(self, pr_number: int) -> str:
-        """Review a PR using accumulated understanding."""
+        """Review a PR using accumulated understanding and dependency graph."""
         pr_files = self._get_pr_files(pr_number)
         impact = self.graph_manager.get_impact_summary(pr_files) if pr_files else ""
-        return self.review_agent.review_pr(pr_number, impact_summary=impact)
+        keywords = self.graph_manager.get_related_keywords(pr_files) if pr_files else None
+        return self.review_agent.review_pr(pr_number, impact_summary=impact, graph_keywords=keywords)
 
     def _get_pr_files(self, pr_number: int) -> list[str]:
         result = subprocess.run(
@@ -116,9 +117,11 @@ class Orchestrator:
             self.graph_manager.update_files(changed_files=py_files, deleted_files=[])
         if self.config.review.enabled:
             impact = self.graph_manager.get_impact_summary(py_files) if py_files else ""
+            keywords = self.graph_manager.get_related_keywords(py_files) if py_files else None
             self.review_agent.review(
                 commit_hash=commit_hash, diff=diff, changed_files=files,
-                branch_prefix=self.config.git.branch_prefix, impact_summary=impact,
+                branch_prefix=self.config.git.branch_prefix,
+                impact_summary=impact, graph_keywords=keywords,
             )
             self.state.mark_commit_reviewed(commit_hash)
 
