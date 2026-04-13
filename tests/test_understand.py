@@ -20,12 +20,13 @@ def test_bootstrap_prompt_includes_voice(mock_runner, warden_dir):
     prompt = mock_runner.run.call_args[0][0]
     assert "senior engineer briefing a new hire" in prompt
 
-def test_bootstrap_prompt_asks_for_three_docs(mock_runner, warden_dir):
+def test_bootstrap_prompt_asks_for_four_docs(mock_runner, warden_dir):
     agent = UnderstandAgent(mock_runner, warden_dir)
     mock_runner.run.return_value = "done"
     agent.bootstrap()
     prompt = mock_runner.run.call_args[0][0]
     assert "architecture.md" in prompt
+    assert "relationships.md" in prompt
     assert "design-decisions.md" in prompt
     assert "patterns.md" in prompt
 
@@ -75,3 +76,33 @@ def test_incremental_tells_agent_to_append(mock_runner, warden_dir):
     agent.incremental({"hash": "abc123", "message": "test", "diff": "diff"})
     prompt = mock_runner.run.call_args[0][0]
     assert "append" in prompt.lower() or "don't rewrite" in prompt.lower() or "do not rewrite" in prompt.lower()
+
+
+def test_bootstrap_captures_relationships(mock_runner, warden_dir):
+    """Bootstrap prompt asks for component relationships and extension points."""
+    agent = UnderstandAgent(mock_runner, warden_dir)
+    mock_runner.run.return_value = "done"
+    agent.bootstrap()
+    prompt = mock_runner.run.call_args[0][0]
+    assert "extension point" in prompt.lower()
+    assert "dependency" in prompt.lower() or "dependencies" in prompt.lower()
+
+
+def test_bootstrap_captures_tech_debt_and_lessons(mock_runner, warden_dir):
+    """Bootstrap prompt asks for tech debt, mistakes, and lessons learned."""
+    agent = UnderstandAgent(mock_runner, warden_dir)
+    mock_runner.run.return_value = "done"
+    agent.bootstrap()
+    prompt = mock_runner.run.call_args[0][0]
+    assert "tech debt" in prompt.lower()
+    assert "mistake" in prompt.lower() or "lesson" in prompt.lower()
+
+
+def test_bootstrap_captures_evolution_philosophy(mock_runner, warden_dir):
+    """Bootstrap prompt explains the relational and evolutionary assumptions."""
+    agent = UnderstandAgent(mock_runner, warden_dir)
+    mock_runner.run.return_value = "done"
+    agent.bootstrap()
+    prompt = mock_runner.run.call_args[0][0]
+    assert "relational" in prompt.lower() or "relationship" in prompt.lower()
+    assert "evolution" in prompt.lower() or "evolutionary" in prompt.lower()
