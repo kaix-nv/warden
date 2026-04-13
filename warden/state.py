@@ -39,6 +39,9 @@ class StateManager:
 
     def record_commit(self, hash: str, timestamp: datetime, files_changed: list[str]):
         with Session(self.engine) as session:
+            existing = session.get(CommitRecord, hash)
+            if existing:
+                return
             record = CommitRecord(
                 hash=hash,
                 timestamp=timestamp,
