@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 
 from warden.agents.ask import AskAgent
@@ -7,6 +8,7 @@ from warden.agents.understand import UnderstandAgent
 from warden.config import WardenConfig, load_config
 from warden.git.hooks import install_post_commit_hook
 from warden.git.repo import GitRepo
+from warden.graph.manager import GraphManager
 from warden.state import StateManager
 
 GITIGNORE_ENTRY = ".warden/state.db"
@@ -16,6 +18,7 @@ class Orchestrator:
     def __init__(self, repo_path: Path, config: WardenConfig | None = None):
         self.repo_path = repo_path
         self.warden_dir = repo_path / ".warden"
+        self.warden_dir.mkdir(parents=True, exist_ok=True)
         self.config = config or load_config(self.warden_dir / "config.yml")
         self.git_repo = GitRepo(repo_path)
 
@@ -25,6 +28,7 @@ class Orchestrator:
         self.ask_agent = AskAgent(runner, self.warden_dir)
 
         self.state = StateManager(self.warden_dir / "state.db")
+        self.graph_manager = GraphManager(self.warden_dir / "state.db", repo_path)
 
     def init(self, pr_count: int | None = None, commit_count: int | None = None):
         """Initialize Warden in the repo."""
@@ -43,6 +47,7 @@ class Orchestrator:
         effective_pr_count = pr_count or self.config.understanding.bootstrap.pr_count
         effective_commit_count = commit_count or self.config.understanding.bootstrap.commit_count
         self.understand_agent.bootstrap(pr_count=effective_pr_count, commit_count=effective_commit_count)
+        self.graph_manager.build_full(self.repo_path, self.config.git.ignore_patterns)
 
         for commit in self.git_repo.get_all_commits():
             self.state.record_commit(hash=commit["hash"], timestamp=commit["timestamp"], files_changed=commit["files"])
@@ -64,7 +69,18 @@ class Orchestrator:
 
     def review_pr(self, pr_number: int) -> str:
         """Review a PR using accumulated understanding."""
-        return self.review_agent.review_pr(pr_number)
+        pr_files = self._get_pr_files(pr_number)
+        impact = self.graph_manager.get_impact_summary(pr_files) if pr_files else ""
+        return self.review_agent.review_pr(pr_number, impact_summary=impact)
+
+    def _get_pr_files(self, pr_number: int) -> list[str]:
+        result = subprocess.run(
+            ["gh", "pr", "view", str(pr_number), "--json", "files", "-q", ".files[].path"],
+            capture_output=True, text=True, cwd=self.repo_path,
+        )
+        if result.returncode != 0:
+            return []
+        return [f for f in result.stdout.strip().splitlines() if f]
 
     def ask(self, question: str) -> str:
         return self.ask_agent.ask(question)
@@ -79,6 +95,7 @@ class Orchestrator:
                 if doc.suffix == ".md":
                     doc_sizes[doc.name] = doc.stat().st_size
         stats["understanding_docs"] = doc_sizes
+        stats["graph_nodes"] = len(self.graph_manager.get_all_nodes())
         return stats
 
     def _analyze_commit(self, commit_hash: str):
@@ -94,8 +111,15 @@ class Orchestrator:
             self.state.record_commit(hash=commit_hash, timestamp=commit_obj.committed_datetime, files_changed=files)
         self.understand_agent.incremental(commit_info)
         self.state.mark_commit_understood(commit_hash)
+        py_files = [f for f in files if f.endswith(".py")]
+        if py_files:
+            self.graph_manager.update_files(changed_files=py_files, deleted_files=[])
         if self.config.review.enabled:
-            self.review_agent.review(commit_hash=commit_hash, diff=diff, changed_files=files, branch_prefix=self.config.git.branch_prefix)
+            impact = self.graph_manager.get_impact_summary(py_files) if py_files else ""
+            self.review_agent.review(
+                commit_hash=commit_hash, diff=diff, changed_files=files,
+                branch_prefix=self.config.git.branch_prefix, impact_summary=impact,
+            )
             self.state.mark_commit_reviewed(commit_hash)
 
     def _add_to_gitignore(self, entry: str):

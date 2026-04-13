@@ -8,7 +8,7 @@ class ReviewAgent:
         self.runner = runner
         self.understanding_dir = warden_dir / "understanding"
 
-    def review(self, commit_hash: str, diff: str, changed_files: list[str], branch_prefix: str = "warden/") -> str:
+    def review(self, commit_hash: str, diff: str, changed_files: list[str], branch_prefix: str = "warden/", impact_summary: str = "") -> str:
         understanding = load_understanding(self.understanding_dir)
         prompt = (
             "You are reviewing a code change as a senior engineer who deeply "
@@ -16,6 +16,8 @@ class ReviewAgent:
         )
         if understanding:
             prompt += f"Here is your accumulated understanding of this codebase:\n\n{understanding}\n\n---\n\n"
+        if impact_summary:
+            prompt += f"{impact_summary}\n\n---\n\n"
         prompt += (
             f"Commit: {commit_hash}\n"
             f"Changed files: {', '.join(changed_files)}\n\n"
@@ -34,7 +36,7 @@ class ReviewAgent:
         )
         return self.runner.run(prompt)
 
-    def review_pr(self, pr_number: int) -> str:
+    def review_pr(self, pr_number: int, impact_summary: str = "") -> str:
         understanding = load_understanding(self.understanding_dir)
 
         prompt = (
@@ -47,6 +49,9 @@ class ReviewAgent:
                 "Here is your accumulated understanding of this codebase:\n\n"
                 f"{understanding}\n\n---\n\n"
             )
+
+        if impact_summary:
+            prompt += f"{impact_summary}\n\n---\n\n"
 
         prompt += (
             f"Fetch PR #{pr_number} using `gh pr view {pr_number}` and "

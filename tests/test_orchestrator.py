@@ -101,3 +101,25 @@ def test_status_returns_stats(setup):
     status = orchestrator.status()
     assert "commits_total" in status
     assert isinstance(status["commits_total"], int)
+
+def test_init_builds_graph(setup):
+    orchestrator, repo_path, repo, mock_runner = setup
+    (repo_path / "app.py").write_text("import os\n\ndef main(): pass\n")
+    repo.index.add(["app.py"])
+    repo.index.commit("Add app")
+    orchestrator.init()
+    nodes = orchestrator.graph_manager.get_all_nodes()
+    assert len(nodes) > 0
+
+def test_analyze_updates_graph(setup):
+    orchestrator, repo_path, repo, mock_runner = setup
+    orchestrator.init()
+    _remove_hook(repo_path)
+    mock_runner.run.reset_mock()
+    (repo_path / "new_module.py").write_text("class Foo:\n    pass\n")
+    repo.index.add(["new_module.py"])
+    repo.index.commit("Add new module")
+    orchestrator.analyze()
+    nodes = orchestrator.graph_manager.get_all_nodes()
+    names = {n["qualified_name"] for n in nodes}
+    assert "new_module.Foo" in names

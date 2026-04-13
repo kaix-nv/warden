@@ -88,3 +88,28 @@ def test_review_pr_returns_agent_output(mock_runner, warden_dir):
     mock_runner.run.return_value = "This PR contradicts decision #3 about config format."
     result = agent.review_pr(99)
     assert "contradicts" in result
+
+def test_review_includes_impact_summary(mock_runner, warden_dir):
+    agent = ReviewAgent(mock_runner, warden_dir)
+    mock_runner.run.return_value = "No issues found."
+    impact = "## Dependency Impact\n### config.py\n  Downstream: cli.py imports config"
+    agent.review("abc123", "diff", ["config.py"], impact_summary=impact)
+    prompt = mock_runner.run.call_args[0][0]
+    assert "Dependency Impact" in prompt
+    assert "cli.py imports config" in prompt
+
+def test_review_works_without_impact_summary(mock_runner, warden_dir):
+    agent = ReviewAgent(mock_runner, warden_dir)
+    mock_runner.run.return_value = "No issues found."
+    agent.review("abc123", "diff", ["file.py"])
+    prompt = mock_runner.run.call_args[0][0]
+    assert "correctness" in prompt.lower()
+
+def test_review_pr_includes_impact_summary(mock_runner, warden_dir):
+    agent = ReviewAgent(mock_runner, warden_dir)
+    mock_runner.run.return_value = "Looks good."
+    impact = "## Dependency Impact\n### models.py\n  3 classes inherit from Base"
+    agent.review_pr(42, impact_summary=impact)
+    prompt = mock_runner.run.call_args[0][0]
+    assert "Dependency Impact" in prompt
+    assert "3 classes inherit from Base" in prompt
