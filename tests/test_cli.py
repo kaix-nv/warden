@@ -29,30 +29,24 @@ def test_analyze_with_commit(mock_orchestrator):
     assert result.exit_code == 0
     mock_orchestrator.analyze.assert_called_once_with(commit_hash="abc123")
 
-def test_ask_command(mock_orchestrator):
-    mock_orchestrator.ask.return_value = "Because of performance."
-    result = runner.invoke(app, ["ask", "Why async?"])
+def test_impact_command(mock_orchestrator):
+    mock_orchestrator.impact.return_value = "## Dependency Impact\n### models.py\n  Dependents: service.py"
+    result = runner.invoke(app, ["impact", "models.py", "config.py"])
     assert result.exit_code == 0
-    mock_orchestrator.ask.assert_called_once_with("Why async?")
-    assert "performance" in result.stdout.lower()
+    mock_orchestrator.impact.assert_called_once_with(["models.py", "config.py"])
+    assert "Dependency Impact" in result.stdout
 
 def test_status_command(mock_orchestrator):
     mock_orchestrator.status.return_value = {
         "commits_total": 42, "commits_understood": 40,
         "reviews_pending": 2, "reviews_accepted": 5, "reviews_declined": 1,
         "understanding_docs": {"architecture.md": 1024, "design-decisions.md": 2048},
+        "graph_nodes": 242,
     }
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0
     assert "42" in result.stdout
-
-def test_review_pr_command(mock_orchestrator):
-    mock_orchestrator.review_pr.return_value = "PR looks good. Aligns with design decision #3."
-    result = runner.invoke(app, ["review-pr", "1234"])
-    assert result.exit_code == 0
-    mock_orchestrator.review_pr.assert_called_once_with(1234)
-    assert "design decision" in result.stdout.lower()
-
+    assert "242" in result.stdout
 
 def test_config_command():
     result = runner.invoke(app, ["config"])

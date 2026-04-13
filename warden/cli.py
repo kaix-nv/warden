@@ -1,5 +1,6 @@
 import shutil
 from pathlib import Path
+from typing import List
 
 import typer
 
@@ -37,18 +38,10 @@ def analyze(
 
 
 @app.command()
-def ask(question: str = typer.Argument(..., help="Question about the codebase")):
-    """Ask a question about the codebase."""
+def impact(files: List[str] = typer.Argument(..., help="Files to analyze for dependency impact")):
+    """Show dependency impact and relevant design context for given files."""
     orchestrator = _get_orchestrator()
-    answer = orchestrator.ask(question)
-    typer.echo(answer)
-
-
-@app.command()
-def review_pr(pr_number: int = typer.Argument(..., help="PR number to review")):
-    """Review a PR using accumulated codebase understanding."""
-    orchestrator = _get_orchestrator()
-    result = orchestrator.review_pr(pr_number)
+    result = orchestrator.impact(files)
     typer.echo(result)
 
 
@@ -69,6 +62,9 @@ def status():
         typer.echo("\nUnderstanding docs:")
         for name, size in docs.items():
             typer.echo(f"  {name}: {size} bytes")
+    graph_nodes = stats.get("graph_nodes", 0)
+    if graph_nodes:
+        typer.echo(f"\nGraph nodes: {graph_nodes}")
 
 
 @app.command()

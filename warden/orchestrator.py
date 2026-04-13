@@ -5,8 +5,10 @@ from warden.agents.ask import AskAgent
 from warden.agents.review import ReviewAgent
 from warden.agents.runner import AgentRunner
 from warden.agents.understand import UnderstandAgent
+from warden.agents.context import load_relevant_understanding
 from warden.config import WardenConfig, load_config
 from warden.git.hooks import install_post_commit_hook
+from warden.skills import install_skills
 from warden.git.repo import GitRepo
 from warden.graph.manager import GraphManager
 from warden.state import StateManager
@@ -49,6 +51,9 @@ class Orchestrator:
         self.understand_agent.bootstrap(pr_count=effective_pr_count, commit_count=effective_commit_count)
         self.graph_manager.build_full(self.repo_path, self.config.git.ignore_patterns)
 
+        # Install Claude Code skills
+        install_skills(self.repo_path)
+
         for commit in self.git_repo.get_all_commits():
             self.state.record_commit(hash=commit["hash"], timestamp=commit["timestamp"], files_changed=commit["files"])
             self.state.mark_commit_understood(commit["hash"])
@@ -66,6 +71,25 @@ class Orchestrator:
             commits = self.git_repo.get_all_commits()
         for commit in reversed(commits):
             self._analyze_commit(commit["hash"])
+
+    def impact(self, file_paths: list[str]) -> str:
+        """Get dependency impact and relevant design context for given files."""
+        parts = []
+
+        # Graph impact
+        impact_summary = self.graph_manager.get_impact_summary(file_paths)
+        if impact_summary.strip():
+            parts.append(impact_summary)
+
+        # Relevant understanding docs filtered by graph keywords
+        keywords = self.graph_manager.get_related_keywords(file_paths)
+        understanding = load_relevant_understanding(
+            self.warden_dir / "understanding", keywords
+        )
+        if understanding:
+            parts.append("## Relevant Design Context\n\n" + understanding)
+
+        return "\n\n".join(parts) if parts else "No impact data available for these files."
 
     def review_pr(self, pr_number: int) -> str:
         """Review a PR using accumulated understanding and dependency graph."""
